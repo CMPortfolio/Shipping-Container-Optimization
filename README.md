@@ -36,7 +36,5 @@ The **Container Load Optimization Tool** is a web-based application built using 
 ![image](https://github.com/user-attachments/assets/e3886cb0-01ba-4690-8a2f-6ad6dd841036)
 
 
-## Future Improvements
-- Support for **multiple container types** (e.g., 20ft, 45ft containers)
 
 
