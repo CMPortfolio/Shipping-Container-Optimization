@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Container Load Optimization Tool</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.global.min.js"></script>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --success: #22c55e;
+            --background: #f8fafc;
+            --border: #e2e8f0;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: var(--background);
+            color: #1e293b;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        label {
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        input {
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 16px;
+        }
+
+        input:focus {
+            outline: 2px solid var(--primary);
+            border-color: var(--primary);
+        }
+
+        button {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        .progress-container {
+            width: 100%;
+            height: 24px;
+            background: var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: var(--success);
+            transition: width 0.3s ease;
+        }
+
+        .results {
+            text-align: center;
+            font-size: 18px;
+            margin: 20px 0;
+        }
+
+        canvas {
+            width: 100%;
+            height: 200px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="container">
+            <h1>Container Load Optimization</h1>
+            
+            <div class="card">
+                <h2>Container Dimensions</h2>
+                <div class="grid">
+                    <div class="input-group">
+                        <label>Length (ft)</label>
+                        <input type="number" v-model="container.lengthFeet" placeholder="Length in feet">
+                    </div>
+                    <div class="input-group">
+                        <label>Width (ft)</label>
+                        <input type="number" v-model="container.widthFeet" placeholder="Width in feet">
+                    </div>
+                    <div class="input-group">
+                        <label>Height (ft)</label>
+                        <input type="number" v-model="container.heightFeet" placeholder="Height in feet">
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Cargo Details</h2>
+                <div class="grid">
+                    <div class="input-group">
+                        <label>Length (in)</label>
+                        <input type="number" v-model="cargo.lengthInches" placeholder="Length in inches">
+                    </div>
+                    <div class="input-group">
+                        <label>Width (in)</label>
+                        <input type="number" v-model="cargo.widthInches" placeholder="Width in inches">
+                    </div>
+                    <div class="input-group">
+                        <label>Height (in)</label>
+                        <input type="number" v-model="cargo.heightInches" placeholder="Height in inches">
+                    </div>
+                    <div class="input-group">
+                        <label>Weight (lbs)</label>
+                        <input type="number" v-model="cargo.weightPounds" placeholder="Weight in pounds">
+                    </div>
+                    <div class="input-group">
+                        <label>Number of units</label>
+                        <input type="number" v-model="cargo.units" placeholder="Units">
+                    </div>
+                </div>
+                <button @click="calculateLoad" style="margin-top: 20px;">Calculate Optimization</button>
+            </div>
+
+            <div v-if="result" class="card">
+                <h2>Results</h2>
+                <div class="results">
+                    <p>{{ result }}</p>
+                    <div class="progress-container">
+                        <div class="progress-bar" :style="{ width: progressWidth + '%' }"></div>
+                    </div>
+                    <p>Container utilization: {{ Math.round(progressWidth) }}%</p>
+                </div>
+                <canvas ref="containerCanvas"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    container: {
+                        lengthFeet: 39.37, // 12m default in feet
+                        widthFeet: 7.71,   // 2.35m default in feet
+                        heightFeet: 7.84   // 2.39m default in feet
+                    },
+                    cargo: {
+                        lengthInches: null,
+                        widthInches: null,
+                        heightInches: null,
+                        weightPounds: null,
+                        units: null
+                    },
+                    result: '',
+                    progressWidth: 0
+                }
+            },
+            methods: {
+                calculateLoad() {
+                    if (!this.validateInputs()) {
+                        alert("Please fill in all fields with valid numbers.");
+                        return;
+                    }
+
+                    const containerVolume = this.convertFeetToCm(this.container.lengthFeet) * this.convertFeetToCm(this.container.widthFeet) * this.convertFeetToCm(this.container.heightFeet);
+                    const cargoVolume = this.convertInchesToCm(this.cargo.lengthInches) * this.convertInchesToCm(this.cargo.widthInches) * this.convertInchesToCm(this.cargo.heightInches);
+                    const maxUnits = Math.floor(containerVolume / cargoVolume);
+                    const fittingUnits = Math.min(this.cargo.units, maxUnits);
+                    
+                    this.progressWidth = (fittingUnits / maxUnits) * 100;
+                    this.result = `You can fit ${fittingUnits} out of ${this.cargo.units} requested units in the container.`;
+                    
+                    this.$nextTick(() => {
+                        this.drawVisualization(fittingUnits, this.cargo.units);
+                    });
+                },
+                validateInputs() {
+                    const inputs = [
+                        ...Object.values(this.container),
+                        ...Object.values(this.cargo)
+                    ];
+                    return inputs.every(value => !isNaN(value) && value > 0);
+                },
+                drawVisualization(fitting, total) {
+                    const canvas = this.$refs.containerCanvas;
+                    const ctx = canvas.getContext('2d');
+                    
+                    // Set canvas size to match display size
+                    canvas.width = canvas.offsetWidth;
+                    canvas.height = canvas.offsetHeight;
+                    
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    
+                    const margin = 40;
+                    const containerWidth = canvas.width - (margin * 2);
+                    const containerHeight = 100;
+                    
+                    // Draw container outline
+                    ctx.strokeStyle = '#e2e8f0';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(margin, margin, containerWidth, containerHeight);
+                    
+                    // Draw filled units
+                    const unitWidth = containerWidth / total;
+                    ctx.fillStyle = '#22c55e';
+                    ctx.fillRect(margin, margin, unitWidth * fitting, containerHeight);
+                    
+                    // Add text
+                    ctx.fillStyle = '#1e293b';
+                    ctx.font = '14px system-ui';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(`${fitting} / ${total} units`, canvas.width / 2, margin + containerHeight + 25);
+                },
+                convertFeetToCm(feet) {
+                    return feet * 30.48;
+                },
+                convertInchesToCm(inches) {
+                    return inches * 2.54;
+                }
+            }
+        }).mount('#app')
+    </script>
+</body>
+</html>
